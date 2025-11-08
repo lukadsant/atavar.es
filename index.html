@@ -56,6 +56,13 @@
             gap: 0.5rem;
             width: 100%;
             height: 100%; /* preencher o pai quando o pai tiver altura definida */
+            /* subtle grid overlay to show cell boundaries */
+            background-image:
+                linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px);
+            /* match the logical grid (5 columns x 4 rows) so lines align with cells */
+            background-size: calc(100% / 5) calc(100% / 4), calc(100% / 5) calc(100% / 4);
+            background-repeat: repeat;
         }
         .grid-item {
             border-radius: 0.75rem;
@@ -110,7 +117,8 @@
             </div>
         </div>
 
-        <script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <script>
             // MiniBento: pequeno refactor OO, mantendo comportamento e UX anteriores.
             (function(){
                 /* --- Constants --- */
@@ -242,28 +250,93 @@
                     }
 
                     // try inserting item with original shape; if not, try fallbacks 2x1 -> 1x2 -> 1x1
+                    // Prefer deterministic placement using current placed coordinates (no randomization) when possible.
                     addWithFallback(item){
-                        this.items.push(item);
-                        let res = this.grid.layoutAll(this.items);
-                        if(res.placed.length === this.items.length){
-                            this.hideWarning(); this.enableAdd(); this.applyRender(res); return;
+                        // If there are existing placed items (they have x/y), try to find a free spot using current layout
+                        const anyPlaced = this.items.some(it => typeof it.x === 'number' && typeof it.y === 'number');
+                        if(anyPlaced){
+                            // try place item directly without touching other items
+                            const mat = this.grid.makeEmpty();
+                            for(const it of this.items){ if(typeof it.x === 'number' && typeof it.y === 'number') this.grid.place(mat, it.shape, it.x, it.y, it.id); }
+
+                            // scan row-major for a fit
+                            let placed = false;
+                            for(let y=0; y<this.grid.h && !placed; y++){
+                                for(let x=0; x<this.grid.w && !placed; x++){
+                                    if(this.grid.canPlace(mat, item.shape, x, y)){
+                                        // commit
+                                        item.x = x; item.y = y; this.items.push(item); placed = true; break;
+                                    }
+                                }
+                            }
+                            if(placed){
+                                // placed successfully
+                                const placedArr = this.items.filter(it=> typeof it.x === 'number' && typeof it.y === 'number').map(it=> Object.assign({}, it));
+                                this.applyRender({ placed: placedArr, free: this.grid.countFree(mat)});
+                                this.hideWarning(); this.enableAdd(); return;
+                            }
+
+                            // couldn't place with current fixed layout -> try fallbacks (also deterministic)
+                            const findBy = (count, dx, dy)=> this.shapes.find(s=> s.cells.length === count && (dx===undefined || s.cells.some(c=> c[0]===dx && c[1]===dy)));
+                            const oneByOne = findBy(1);
+                            const twoH = findBy(2,1,0);
+                            const twoV = findBy(2,0,1);
+                            const fallbacks = [];
+                            if(item.shape.cells.length === 4){ if(twoH) fallbacks.push(twoH); if(twoV) fallbacks.push(twoV); if(oneByOne) fallbacks.push(oneByOne); }
+                            else if(item.shape.cells.length === 2){ if(oneByOne) fallbacks.push(oneByOne); }
+                            else if(item.shape.cells.length === 1){ /* nothing */ }
+                            else { if(oneByOne) fallbacks.push(oneByOne); }
+
+                            for(const fb of fallbacks){
+                                const matFb = this.grid.makeEmpty();
+                                for(const it of this.items){ if(typeof it.x === 'number' && typeof it.y === 'number') this.grid.place(matFb, it.shape, it.x, it.y, it.id); }
+                                let placedFb = false;
+                                for(let y=0; y<this.grid.h && !placedFb; y++){
+                                    for(let x=0; x<this.grid.w && !placedFb; x++){
+                                        if(this.grid.canPlace(matFb, fb, x, y)){
+                                            const candidate = new Item(this.nextId++, fb, item.color, item.label);
+                                            candidate.x = x; candidate.y = y; this.items.push(candidate);
+                                            placedFb = true; break;
+                                        }
+                                    }
+                                }
+                                if(placedFb){
+                                    const placedArr = this.items.filter(it=> typeof it.x === 'number' && typeof it.y === 'number').map(it=> Object.assign({}, it));
+                                    const free = this.grid.countFree(matFb);
+                                    const desc = fb.cells.length === 1 ? '1x1' : (fb.cells[0][1] === 0 ? '2x1' : '1x2');
+                                    this.showTemporaryWarning(`Não coube no formato — adicionado como ${desc}`);
+                                    this.applyRender({ placed: placedArr, free });
+                                    return;
+                                }
+                            }
+
+                            // no placement possible with deterministic attempts -> signal full
+                            this.showWarning('Grid cheia — limpe para adicionar mais'); this.disableAdd();
+                            const placedArr = this.items.filter(it=> typeof it.x === 'number' && typeof it.y === 'number').map(it=> Object.assign({}, it));
+                            // recalc free from mat
+                            const free = this.grid.countFree(mat);
+                            this.applyRender({ placed: placedArr, free });
+                            return;
                         }
 
-                        // remove last and try fallbacks
-                        this.items.pop(); this.nextId--; // revert id increment
+                        // fallback: no existing placed coordinates (first layout) -> behave as before and randomize layout
+                        this.items.push(item);
+                        let res = this.grid.layoutAll(this.items);
+                        if(res.placed.length === this.items.length){ this.hideWarning(); this.enableAdd(); this.applyRender(res); return; }
 
-                        const findBy = (count, dx, dy)=> this.shapes.find(s=> s.cells.length === count && (dx===undefined || s.cells.some(c=> c[0]===dx && c[1]===dy)));
-                        const oneByOne = findBy(1);
-                        const twoH = findBy(2,1,0);
-                        const twoV = findBy(2,0,1);
-
-                        const fallbacks = [];
-                        if(item.shape.cells.length === 4){ if(twoH) fallbacks.push(twoH); if(twoV) fallbacks.push(twoV); if(oneByOne) fallbacks.push(oneByOne); }
-                        else if(item.shape.cells.length === 2){ if(oneByOne) fallbacks.push(oneByOne); }
+                        // remove last and try the randomized fallbacks as before
+                        this.items.pop(); this.nextId--;
+                        const findByR = (count, dx, dy)=> this.shapes.find(s=> s.cells.length === count && (dx===undefined || s.cells.some(c=> c[0]===dx && c[1]===dy)));
+                        const oneByOneR = findByR(1);
+                        const twoHR = findByR(2,1,0);
+                        const twoVR = findByR(2,0,1);
+                        const fallbacksR = [];
+                        if(item.shape.cells.length === 4){ if(twoHR) fallbacksR.push(twoHR); if(twoVR) fallbacksR.push(twoVR); if(oneByOneR) fallbacksR.push(oneByOneR); }
+                        else if(item.shape.cells.length === 2){ if(oneByOneR) fallbacksR.push(oneByOneR); }
                         else if(item.shape.cells.length === 1){ /* nothing */ }
-                        else { if(oneByOne) fallbacks.push(oneByOne); }
+                        else { if(oneByOneR) fallbacksR.push(oneByOneR); }
 
-                        for(const fb of fallbacks){
+                        for(const fb of fallbacksR){
                             const candidate = new Item(this.nextId++, fb, item.color, item.label);
                             this.items.push(candidate);
                             res = this.grid.layoutAll(this.items);
@@ -272,38 +345,124 @@
                                 this.showTemporaryWarning(`Não coube no formato — adicionado como ${desc}`);
                                 this.applyRender(res); return;
                             }
-                            // revert
                             this.items.pop(); this.nextId--;
                         }
 
                         // couldn't place even after fallbacks
-                        this.showWarning('Grid cheia — limpe para adicionar mais');
-                        this.disableAdd();
-                        // render current best (attempt layout without the new item)
-                        const best = res; // res refers to last attempt (layoutAll of previous items)
-                        this.applyRender(best);
+                        this.showWarning('Grid cheia — limpe para adicionar mais'); this.disableAdd(); this.applyRender(res);
                     }
 
                     applyRender(result){
+                        // persist placed coordinates into items (so DnD and future ops know positions)
+                        this.items.forEach(it => { delete it.x; delete it.y; });
+                        for(const p of result.placed){
+                            const it = this.items.find(i => i.id === p.id);
+                            if(it) { it.x = p.x; it.y = p.y; }
+                        }
                         this.render(result.placed);
                         this.updateStatus(result.placed.length, result.free);
                     }
 
                     render(placed){
-                        // UI-only rendering; keeps logic separated
+                        // UI-only rendering; always consult canonical items for shape/color/label
                         this.miniGridEl.innerHTML = '';
                         this.lastPlacedCount = placed.length;
-                        for(const item of placed){
+                        for(const placedItem of placed){
+                            const canonical = this.items.find(i => i.id === placedItem.id) || placedItem;
                             const el = document.createElement('div');
-                            const w = Math.max(...item.shape.cells.map(([dx])=>dx)) + 1;
-                            const h = Math.max(...item.shape.cells.map(([_,dy])=>dy)) + 1;
+                            const w = Math.max(...canonical.shape.cells.map(([dx])=>dx)) + 1;
+                            const h = Math.max(...canonical.shape.cells.map(([_,dy])=>dy)) + 1;
                             el.className = 'grid-item';
-                            el.style.background = item.color;
-                            el.style.gridColumn = `${item.x+1} / span ${w}`;
-                            el.style.gridRow = `${item.y+1} / span ${h}`;
-                            el.textContent = item.label;
+                            el.style.background = canonical.color || placedItem.color;
+                            el.style.gridColumn = `${placedItem.x+1} / span ${w}`;
+                            el.style.gridRow = `${placedItem.y+1} / span ${h}`;
+                            el.textContent = canonical.label || placedItem.label;
+                            // dataset for drag identification and better touch behaviour
+                            el.dataset.id = placedItem.id;
+                            el.style.touchAction = 'none';
                             this.miniGridEl.appendChild(el);
                         }
+                        // bind draggable behaviour after DOM is updated
+                        this.bindDraggables();
+                    }
+
+                    bindDraggables(){
+                        if(typeof interact === 'undefined') return; // lib missing
+                        try{ interact('.grid-item').unset(); } catch(e){}
+
+                        const cellW = this.miniGridEl.clientWidth / this.grid.w;
+                        const cellH = this.miniGridEl.clientHeight / this.grid.h;
+
+                        interact('.grid-item').draggable({
+                            inertia: false,
+                            modifiers: [
+                                // snap movement to the grid cells for clearer UX
+                                interact.modifiers.snap({
+                                    targets: [ interact.snappers.grid({ x: cellW, y: cellH }) ],
+                                    range: Infinity,
+                                    relativePoints: [{ x: 0, y: 0 }]
+                                }),
+                                interact.modifiers.restrictRect({ restriction: this.miniGridEl })
+                            ],
+                            listeners: {
+                                move: event => {
+                                    const target = event.target;
+                                    const dx = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                                    const dy = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+                                    target.style.transform = `translate(${dx}px, ${dy}px)`;
+                                    target.setAttribute('data-x', dx);
+                                    target.setAttribute('data-y', dy);
+                                },
+                                end: event => {
+                                    const target = event.target;
+                                    const rect = this.miniGridEl.getBoundingClientRect();
+                                    // use element center after snap to decide cell — more robust than raw client coords
+                                    const tRect = target.getBoundingClientRect();
+                                    const dropCenterX = (tRect.left - rect.left) + (tRect.width / 2);
+                                    const dropCenterY = (tRect.top - rect.top) + (tRect.height / 2);
+                                    let col = Math.floor(dropCenterX / cellW);
+                                    let row = Math.floor(dropCenterY / cellH);
+                                    col = Math.max(0, Math.min(this.grid.w-1, col));
+                                    row = Math.max(0, Math.min(this.grid.h-1, row));
+                                    const id = Number(target.dataset.id);
+                                    // attempt to move the item
+                                    this.tryMoveItemTo(id, col, row);
+                                    // cleanup transform attrs
+                                    target.style.transform = '';
+                                    target.removeAttribute('data-x'); target.removeAttribute('data-y');
+                                }
+                            }
+                        });
+                    }
+
+                    tryMoveItemTo(id, col, row){
+                        const item = this.items.find(i=>i.id===id);
+                        if(!item) return;
+                        // build matrix with other already-placed items
+                        const mat = this.grid.makeEmpty();
+                        for(const it of this.items){
+                            if(it.id === id) continue;
+                            if(typeof it.x === 'number' && typeof it.y === 'number'){
+                                this.grid.place(mat, it.shape, it.x, it.y, it.id);
+                            }
+                        }
+                        // can place at target?
+                        if(this.grid.canPlace(mat, item.shape, col, row)){
+                            this.grid.place(mat, item.shape, col, row, item.id);
+                            // persist positions in items and render
+                            this.items.forEach(it=>{ if(it.id===id){ it.x = col; it.y = row; } });
+                            const placed = this.items.filter(it=> typeof it.x === 'number' && typeof it.y === 'number').map(it=> Object.assign({}, it));
+                            const free = this.grid.countFree(mat);
+                            this.applyRender({ placed, free });
+                            return;
+                        }
+                        // couldn't place: notify and re-render existing layout
+                        this.showTemporaryWarning('Não coube nessa posição', 1200);
+                        const placed = this.items.filter(it=> typeof it.x === 'number' && typeof it.y === 'number').map(it=> Object.assign({}, it));
+                        const mat2 = this.grid.makeEmpty();
+                        for(const p of placed) this.grid.place(mat2, p.shape, p.x, p.y, p.id);
+                        const free = this.grid.countFree(mat2);
+                        this.applyRender({ placed, free });
                     }
 
                     clear(){ this.items = []; this.nextId = 1; this.miniGridEl.innerHTML = ''; this.hideWarning(); this.enableAdd(); this.updateStatus(0, this.grid.w * this.grid.h); }
