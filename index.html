@@ -5,42 +5,337 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bento</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        /* Bento button styles (lightweight, no build required) */
+        .bento-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            width: 100%;
+            padding: 1rem 1.1rem;
+            background: linear-gradient(180deg, #ffffff, #f3f4f6);
+            border-radius: 0.75rem;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12), inset 0 -6px 12px rgba(0,0,0,0.03);
+            border: 1px solid rgba(0,0,0,0.06);
+            color: #0f172a; /* text color */
+            text-decoration: none;
+            overflow: hidden;
+            transition: transform .12s ease, box-shadow .12s ease;
+        }
+        .bento-btn:hover { transform: translateY(-3px) scale(1.01); box-shadow: 0 14px 30px rgba(99,102,241,0.12); }
+        .bento-left { display:flex; align-items:center; gap:0.75rem; }
+        .bento-label { font-weight:600; color:#0f172a; }
+
+        /* Decorative compartments on the right */
+        .bento-compartments { display:flex; align-items:center; gap:0.5rem; }
+        .bento-compartments .big {
+            width:56px; height:40px; border-radius:8px;
+            background: linear-gradient(180deg,#fff,#e9eef7);
+            box-shadow: inset 0 -6px 10px rgba(0,0,0,0.05);
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+        .bento-compartments .col { display:flex; flex-direction:column; gap:6px; }
+        .bento-compartments .small { width:22px; height:14px; border-radius:6px;
+            background: linear-gradient(180deg,#fff,#f6f7fb);
+            box-shadow: inset 0 -4px 8px rgba(0,0,0,0.04);
+            border: 1px solid rgba(0,0,0,0.03);
+        }
+
+        /* Responsive: hide decorative compartments on very small screens */
+        @media (max-width:520px) {
+            .bento-compartments { display:none; }
+        }
+
+        /* Mini bento grid (simplified mechanics) */
+        .grid-bento {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            /* aumentar a altura mínima das linhas para ocupar mais vertical */
+            grid-auto-rows: minmax(80px, 1fr);
+            gap: 0.5rem;
+            width: 100%;
+            height: 100%; /* preencher o pai quando o pai tiver altura definida */
+        }
+        .grid-item {
+            border-radius: 0.75rem;
+            overflow: hidden;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-weight:600;
+            color:var(--text-color,#0f172a);
+        }
+    </style>
 </head>
 <body class="overflow-y-hidden w-full h-screen relative">
          <img src="https://plus.unsplash.com/premium_photo-1670333242712-6e95c863592b?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=1113'" alt="" srcset="" class="h-full w-full absolute bottom-0 left-0 object-cover z-0">
 
-        <div class="w-full h-screen flex flex-col justify-end sm:mx-auto sm:max-w-[40rem] relative bottom-0 top-10 left-0 right-0 z-10 translate-x-l absolute">
+        <div class="w-full h-screen flex flex-col justify-end sm:mx-auto sm:max-w-[90rem] relative bottom-0 top-10 left-0 right-0 z-10 translate-x-l absolute">
            
-            <div class="w-full h-[43rem] rounded-t-[3rem] bg-black/50 backdrop-blur-xl border border-zinc-400 shadow-2xl shadow-white/30 space-y-8 pb-48">
-                <div class="w-full flex justify-center">
-                    <div class="absolute -top-20 h-[12rem] w-[12rem]">
+            <!-- Imagem e título ficam FORA do card grande -->
+            <div class="w-full flex flex-col items-center gap-4 mb-4">
+                <div class="h-[12rem] w-[12rem]">
                     <img src="https://i.pinimg.com/1200x/07/e9/d4/07e9d4a1646a289bfc5185358213674c.jpg" alt="bento" srcset="" class="h-full w-full rounded-full object-cover shadow-2xl shadow-white/30 border-4 border-white hover:scale-110 transition-all duration-300 ease-in-out hover:shadow-indigo-600">
-                    </div>
                 </div>
-                <div class="pt-[10rem] w-full flex flex-col justify-between h-full">
-                    <div class="">
-                        <div>
-                            <div class="w-full flex justify-center">
-                                <h1 class="text-white text-3xl font-bold">BENTO</h1>
-                            </div>
-                            <div class="w-full flex justify-center">
-                                <h1 class="text-white text-xl text-zinc-400">@Lukadsant</h1>
-                            </div>
-                        </div>
-
-
-                        <div class="mt-8 w-full flex flex-col px-8 gap-y-8">
-                            <a href="http://x.com/lukadsant" target="_blank" rel="noopener noreferrer" class="w-full bg-zinc-50 rounded-xl border-3 boder-white p-6 flex justify-center items-center gap-2 hover:scale-105 transition-all duration-75 ease-linear hover:shadow-2xl hover:shadow-indigo-500"> <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" class="size-6"><!-- Icon from Material Line Icons by Vjacheslav Trushkin - https://github.com/cyberalien/line-md/blob/master/license.txt --><g fill="currentColor"><path d="M1 2h2.5L3.5 2h-2.5zM5.5 2h2.5L7.2 2h-2.5z"><animate fill="freeze" attributeName="d" dur="0.4s" values="M1 2h2.5L3.5 2h-2.5zM5.5 2h2.5L7.2 2h-2.5z;M1 2h2.5L18.5 22h-2.5zM5.5 2h2.5L23 22h-2.5z"/></path><path d="M3 2h5v0h-5zM16 22h5v0h-5z"><animate fill="freeze" attributeName="d" begin="0.4s" dur="0.4s" values="M3 2h5v0h-5zM16 22h5v0h-5z;M3 2h5v2h-5zM16 22h5v-2h-5z"/></path><path d="M18.5 2h3.5L22 2h-3.5z"><animate fill="freeze" attributeName="d" begin="0.5s" dur="0.4s" values="M18.5 2h3.5L22 2h-3.5z;M18.5 2h3.5L5 22h-3.5z"/></path></g></svg>Meu x (twitter)</a>
-                            
-                        </div>
-
-                    </div>
-                                            <div class="w-full flex justify-center">
-                            <a href="http://berolab.app" target="_blank" rel="noopener noreferrer" class="text-white font-medium">Feito na berolab</a>
-                        </div>
+                <div class="w-full flex flex-col items-center">
+                    <h1 class="text-white text-3xl font-bold">BENTO</h1>
+                    <h1 class="text-white text-xl text-zinc-400">@Lukadsant</h1>
                 </div>
             </div>
+
+            <!-- Card principal agora contém apenas o Mini Bento (grid) -->
+            <div class="w-full h-[55rem] rounded-t-[3rem] bg-black/50 backdrop-blur-xl border border-zinc-400 shadow-2xl shadow-white/30">
+                <div class="w-full h-full px-8 py-8 flex flex-col">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center gap-4">
+                            <h3 class="text-white font-semibold">Mini Bento (simplificado)</h3>
+                            <span id="miniCount" class="text-sm text-gray-300">Itens: 0</span>
+                            <span id="miniWarning" class="text-sm text-rose-400 hidden">Grid cheia — limpe para adicionar mais</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="addItemBtn" class="bg-white text-zinc-800 px-3 py-1 rounded-md">Adicionar item</button>
+                            <button id="compactBtn" class="bg-white text-zinc-800 px-3 py-1 rounded-md">Compactar</button>
+                            <button id="clearBtn" class="bg-transparent border border-white text-white px-3 py-1 rounded-md">Limpar</button>
+                        </div>
+                    </div>
+
+                    <div id="miniGrid" class="grid-bento"></div>
+                </div>
+            </div>
+
+            <!-- link de rodapé abaixo do card -->
+            <div class="w-full flex justify-center mt-6">
+                <a href="http://berolab.app" target="_blank" rel="noopener noreferrer" class="text-white font-medium">Feito na berolab</a>
+            </div>
         </div>
+
+        <script>
+            // Mini-bento simplified: start empty, add items with a button and auto-relayout
+            (function(){
+                const GRID_W = 5, GRID_H = 4;
+                const miniGrid = document.getElementById('miniGrid');
+                const addBtn = document.getElementById('addItemBtn');
+                const compactBtn = document.getElementById('compactBtn');
+                const clearBtn = document.getElementById('clearBtn');
+
+                const COLORS = ['#60a5fa','#f472b6','#34d399','#facc15','#a78bfa','#ef4444','#06b6d4','#fb923c'];
+                const LABELS = ['Site','Insta','Zap','YouTube','GitHub','Blog','Spotify','Contato','Portfólio'];
+                const SHAPES = [
+                    {cells:[[0,0]]},
+                    {cells:[[0,0],[1,0]]},
+                    {cells:[[0,0],[0,1]]},
+                    {cells:[[0,0],[1,0],[0,1],[1,1]]}
+                ];
+
+                // state
+                let items = []; // array of {id, shape, color, label}
+                let nextId = 1;
+
+                function makeEmpty(){ return Array.from({length:GRID_H},()=>Array(GRID_W).fill(null)); }
+
+                function canPlace(grid, shape, x, y){
+                    return shape.cells.every(([dx,dy])=>{
+                        const nx=x+dx, ny=y+dy; return nx>=0 && nx<GRID_W && ny>=0 && ny<GRID_H && grid[ny][nx]===null;
+                    });
+                }
+
+                function place(grid, shape, x, y, id){ shape.cells.forEach(([dx,dy])=> grid[y+dy][x+dx]=id); }
+
+                // try to layout all items (randomized order) and return placed items with coords
+                // also return number of free cells left
+                // layout using a provided order (array of items). positions are tried in random order
+                function layoutWithOrder(order){
+                    const grid = makeEmpty();
+                    const placed = [];
+                    for(const it of order){
+                        // try all positions in random order
+                        const positions = [];
+                        for(let y=0;y<GRID_H;y++) for(let x=0;x<GRID_W;x++) positions.push([x,y]);
+                        positions.sort(()=>Math.random()-0.5);
+                        let placedFlag = false;
+                        for(const [x,y] of positions){
+                            if(canPlace(grid, it.shape, x, y)){
+                                place(grid, it.shape, x, y, it.id);
+                                placed.push({ ...it, x, y });
+                                placedFlag = true; break;
+                            }
+                        }
+                    }
+
+                    // count free cells
+                    let free = 0;
+                    for(let y=0;y<GRID_H;y++){
+                        for(let x=0;x<GRID_W;x++) if(grid[y][x] === null) free++;
+                    }
+
+                    return { placed, free };
+                }
+
+                // original layoutAll keeps previous random behavior
+                function layoutAll(srcItems){
+                    const order = srcItems.slice().sort(()=>Math.random()-0.5);
+                    return layoutWithOrder(order);
+                }
+
+                function renderPlaced(placed){
+                    miniGrid.innerHTML = '';
+                    // track last placed count so compact can compare
+                    window.__lastPlacedCount = placed.length;
+                    placed.forEach(item=>{
+                        const el = document.createElement('div');
+                        const w = Math.max(...item.shape.cells.map(([dx])=>dx))+1;
+                        const h = Math.max(...item.shape.cells.map(([_,dy])=>dy))+1;
+                        el.className = 'grid-item';
+                        el.style.background = item.color;
+                        el.style.gridColumn = `${item.x+1} / span ${w}`;
+                        el.style.gridRow = `${item.y+1} / span ${h}`;
+                        el.textContent = item.label;
+                        miniGrid.appendChild(el);
+                    });
+                }
+
+                // compact attempt: run several layout strategies and pick best
+                function compactGrid(){
+                    if(items.length === 0) return;
+                    const attempts = [];
+
+                    // largest-first
+                    attempts.push(layoutWithOrder(items.slice().sort((a,b)=> b.shape.cells.length - a.shape.cells.length)));
+                    // smallest-first
+                    attempts.push(layoutWithOrder(items.slice().sort((a,b)=> a.shape.cells.length - b.shape.cells.length)));
+                    // several random attempts
+                    for(let i=0;i<12;i++) attempts.push(layoutAll(items));
+
+                    // pick best: most placed, tie-breaker more free cells
+                    let best = attempts[0];
+                    for(const a of attempts){
+                        if(a.placed.length > best.placed.length) best = a;
+                        else if(a.placed.length === best.placed.length && a.free > best.free) best = a;
+                    }
+
+                    const prevCount = window.__lastPlacedCount || 0;
+                    if(best.placed.length > prevCount){
+                        renderPlaced(best.placed);
+                        updateStatus(best.placed.length, best.free);
+                        if(miniWarningEl){
+                            const prev = miniWarningEl.textContent;
+                            miniWarningEl.textContent = `Compactado — agora visíveis ${best.placed.length} itens`;
+                            miniWarningEl.classList.remove('hidden');
+                            setTimeout(()=>{ miniWarningEl.classList.add('hidden'); miniWarningEl.textContent = prev || 'Grid cheia — limpe para adicionar mais'; }, 1800);
+                        }
+                        // enable add if there's at least one free cell
+                        if(best.free > 0){ addBtn.disabled = false; addBtn.classList.remove('opacity-50','cursor-not-allowed'); }
+                    } else {
+                        // no improvement
+                        if(miniWarningEl){
+                            const prev = miniWarningEl.textContent;
+                            miniWarningEl.textContent = `Compactação não aumentou itens visíveis`;
+                            miniWarningEl.classList.remove('hidden');
+                            setTimeout(()=>{ miniWarningEl.classList.add('hidden'); miniWarningEl.textContent = prev || 'Grid cheia — limpe para adicionar mais'; }, 1400);
+                        }
+                    }
+                }
+
+                function addItem(){
+                    // pick random shape/color/label
+                    const shape = SHAPES[Math.floor(Math.random()*SHAPES.length)];
+                    const color = COLORS[Math.floor(Math.random()*COLORS.length)];
+                    const label = LABELS[Math.floor(Math.random()*LABELS.length)];
+
+                    // try adding requested shape first
+                    items.push({ id: nextId++, shape, color, label });
+                    let res = layoutAll(items);
+                    if(res.placed.length === items.length){
+                        // success
+                        miniWarningEl && miniWarningEl.classList.add('hidden');
+                        addBtn.disabled = false;
+                        addBtn.classList.remove('opacity-50','cursor-not-allowed');
+                        renderPlaced(res.placed);
+                        updateStatus(res.placed.length, res.free);
+                        return;
+                    }
+
+                    // couldn't place requested shape -> try fallbacks in order: 2x1 -> 1x2 -> 1x1
+                    items.pop(); nextId--;
+
+                    // helper to find shapes by signature
+                    const findBySize = (count, dxCheck, dyCheck) => SHAPES.find(s => s.cells.length === count && s.cells.some(([dx,dy])=> (dxCheck===undefined||dx===dxCheck) && (dyCheck===undefined||dy===dyCheck)));
+
+                    const oneByOne = findBySize(1);
+                    const twoH = findBySize(2, 1, 0); // [0,0],[1,0]
+                    const twoV = findBySize(2, 0, 1); // [0,0],[0,1]
+
+                    const fallbacks = [];
+                    // if original was 2x2 prefer 2x1 and 1x2 first
+                    if(shape.cells.length === 4){ if(twoH) fallbacks.push(twoH); if(twoV) fallbacks.push(twoV); if(oneByOne) fallbacks.push(oneByOne); }
+                    else if(shape.cells.length === 2){ if(oneByOne) fallbacks.push(oneByOne); }
+                    else if(shape.cells.length === 1){ /* nothing to fallback to */ }
+                    else { if(oneByOne) fallbacks.push(oneByOne); }
+
+                    for(const fb of fallbacks){
+                        items.push({ id: nextId++, shape: fb, color, label });
+                        res = layoutAll(items);
+                        if(res.placed.length === items.length){
+                            // success with fallback
+                            if(miniWarningEl){
+                                const prevText = miniWarningEl.textContent;
+                                const desc = fb.cells.length === 1 ? '1x1' : (fb.cells[0][1] === 0 ? '2x1' : '1x2');
+                                miniWarningEl.textContent = `Não coube no formato — adicionado como ${desc}`;
+                                miniWarningEl.classList.remove('hidden');
+                                setTimeout(()=>{
+                                    miniWarningEl.classList.add('hidden');
+                                    miniWarningEl.textContent = prevText || 'Grid cheia — limpe para adicionar mais';
+                                }, 2000);
+                            }
+                            renderPlaced(res.placed);
+                            updateStatus(res.placed.length, res.free);
+                            return;
+                        }
+                        // remove candidate and continue
+                        items.pop(); nextId--;
+                    }
+
+                    // couldn't place even after fallbacks -> grid is full
+                    if(miniWarningEl){
+                        miniWarningEl.textContent = 'Grid cheia — limpe para adicionar mais';
+                        miniWarningEl.classList.remove('hidden');
+                    }
+                    addBtn.disabled = true;
+                    addBtn.classList.add('opacity-50','cursor-not-allowed');
+                    renderPlaced(res.placed);
+                    updateStatus(res.placed.length, res.free);
+                }
+
+                function clearAll(){ items = []; nextId = 1; miniGrid.innerHTML = ''; }
+
+                // status UI
+                const miniCountEl = document.getElementById('miniCount');
+                const miniWarningEl = document.getElementById('miniWarning');
+
+                function updateStatus(placedCount, freeCells){
+                    if(miniCountEl){
+                        const free = typeof freeCells === 'number' ? freeCells : (GRID_W*GRID_H - placedCount);
+                        miniCountEl.textContent = `Itens: ${placedCount} — Espaços: ${free}`;
+                    }
+                }
+
+                // wire buttons (use addItem / clearAll helpers)
+                addBtn && addBtn.addEventListener('click', addItem);
+                compactBtn && compactBtn.addEventListener('click', compactGrid);
+                clearBtn && clearBtn.addEventListener('click', () => {
+                    clearAll();
+                    miniWarningEl && miniWarningEl.classList.add('hidden');
+                    addBtn.disabled = false;
+                    addBtn.classList.remove('opacity-50','cursor-not-allowed');
+                    updateStatus(0, GRID_W * GRID_H);
+                });
+
+                // start empty (do not auto-fill)
+                miniGrid.innerHTML = '';
+                updateStatus(0, GRID_W * GRID_H);
+            })();
+        </script>
 
 
 </body>
