@@ -111,229 +111,240 @@
         </div>
 
         <script>
-            // Mini-bento simplified: start empty, add items with a button and auto-relayout
+            // MiniBento: pequeno refactor OO, mantendo comportamento e UX anteriores.
             (function(){
+                /* --- Constants --- */
                 const GRID_W = 5, GRID_H = 4;
-                const miniGrid = document.getElementById('miniGrid');
+                const COLORS = ['#60a5fa','#f472b6','#34d399','#facc15','#a78bfa','#ef4444','#06b6d4','#fb923c'];
+                const LABELS = ['Site','Insta','Zap','YouTube','GitHub','Blog','Spotify','Contato','Portfólio'];
+                const SHAPES_RAW = [
+                    [[0,0]],
+                    [[0,0],[1,0]],
+                    [[0,0],[0,1]],
+                    [[0,0],[1,0],[0,1],[1,1]]
+                ];
+
+                /* --- Shape --- */
+                class Shape {
+                    constructor(cells){
+                        this.cells = cells.map(c => [c[0], c[1]]);
+                        this.w = Math.max(...this.cells.map(c=>c[0])) + 1;
+                        this.h = Math.max(...this.cells.map(c=>c[1])) + 1;
+                    }
+                }
+
+                /* --- Item --- */
+                class Item {
+                    constructor(id, shape, color, label){
+                        this.id = id; this.shape = shape; this.color = color; this.label = label;
+                    }
+                }
+
+                /* --- Grid: pure logic, no DOM --- */
+                class Grid {
+                    constructor(w, h){ this.w = w; this.h = h; }
+
+                    makeEmpty(){ return Array.from({length:this.h},()=>Array(this.w).fill(null)); }
+
+                    canPlace(matrix, shape, x, y){
+                        return shape.cells.every(([dx,dy])=>{
+                            const nx = x+dx, ny = y+dy;
+                            return nx>=0 && nx<this.w && ny>=0 && ny<this.h && matrix[ny][nx]===null;
+                        });
+                    }
+
+                    place(matrix, shape, x, y, id){ shape.cells.forEach(([dx,dy])=> matrix[y+dy][x+dx] = id); }
+
+                    countFree(matrix){
+                        let n=0; for(let y=0;y<this.h;y++) for(let x=0;x<this.w;x++) if(matrix[y][x]===null) n++; return n;
+                    }
+
+                    // try to layout items in the given order (positions tested in random order)
+                    layoutWithOrder(order){
+                        const mat = this.makeEmpty();
+                        const placed = [];
+                        for(const it of order){
+                            // build positions list and shuffle
+                            const positions = [];
+                            for(let y=0;y<this.h;y++) for(let x=0;x<this.w;x++) positions.push([x,y]);
+                            positions.sort(()=>Math.random() - 0.5);
+                            for(const [x,y] of positions){
+                                if(this.canPlace(mat, it.shape, x, y)){
+                                    this.place(mat, it.shape, x, y, it.id);
+                                    placed.push(Object.assign({}, it, { x, y }));
+                                    break;
+                                }
+                            }
+                        }
+                        return { placed, free: this.countFree(mat) };
+                    }
+
+                    // randomized order wrapper
+                    layoutAll(items){
+                        const order = items.slice().sort(()=>Math.random()-0.5);
+                        return this.layoutWithOrder(order);
+                    }
+
+                    // compact: try a few strategies and return the best result
+                    compact(items){
+                        if(items.length === 0) return { placed: [], free: this.w * this.h };
+                        const attempts = [];
+                        // largest-first
+                        attempts.push(this.layoutWithOrder(items.slice().sort((a,b)=> b.shape.cells.length - a.shape.cells.length)));
+                        // smallest-first
+                        attempts.push(this.layoutWithOrder(items.slice().sort((a,b)=> a.shape.cells.length - b.shape.cells.length)));
+                        // random attempts
+                        for(let i=0;i<12;i++) attempts.push(this.layoutAll(items));
+
+                        // choose best (most placed, then more free)
+                        let best = attempts[0];
+                        for(const a of attempts){
+                            if(a.placed.length > best.placed.length) best = a;
+                            else if(a.placed.length === best.placed.length && a.free > best.free) best = a;
+                        }
+                        return best;
+                    }
+                }
+
+                /* --- MiniBentoApp: UI + orchestration --- */
+                class MiniBentoApp {
+                    constructor(opts){
+                        this.grid = new Grid(opts.gridW, opts.gridH);
+                        this.miniGridEl = opts.miniGridEl;
+                        this.addBtn = opts.addBtn; this.compactBtn = opts.compactBtn; this.clearBtn = opts.clearBtn;
+                        this.countEl = opts.countEl; this.warnEl = opts.warnEl;
+
+                        this.shapes = SHAPES_RAW.map(c=>new Shape(c));
+                        this.colors = COLORS.slice(); this.labels = LABELS.slice();
+
+                        this.items = []; this.nextId = 1; this.lastPlacedCount = 0;
+
+                        // wire UI
+                        this.addBtn && this.addBtn.addEventListener('click', ()=> this.addItem());
+                        this.compactBtn && this.compactBtn.addEventListener('click', ()=> this.compact());
+                        this.clearBtn && this.clearBtn.addEventListener('click', ()=> this.clear());
+                    }
+
+                    randomFrom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+                    pickRandomItemData(){
+                        return {
+                            shape: this.randomFrom(this.shapes),
+                            color: this.randomFrom(this.colors),
+                            label: this.randomFrom(this.labels)
+                        };
+                    }
+
+                    addItem(){
+                        const { shape, color, label } = this.pickRandomItemData();
+                        const item = new Item(this.nextId++, shape, color, label);
+                        this.addWithFallback(item);
+                    }
+
+                    // try inserting item with original shape; if not, try fallbacks 2x1 -> 1x2 -> 1x1
+                    addWithFallback(item){
+                        this.items.push(item);
+                        let res = this.grid.layoutAll(this.items);
+                        if(res.placed.length === this.items.length){
+                            this.hideWarning(); this.enableAdd(); this.applyRender(res); return;
+                        }
+
+                        // remove last and try fallbacks
+                        this.items.pop(); this.nextId--; // revert id increment
+
+                        const findBy = (count, dx, dy)=> this.shapes.find(s=> s.cells.length === count && (dx===undefined || s.cells.some(c=> c[0]===dx && c[1]===dy)));
+                        const oneByOne = findBy(1);
+                        const twoH = findBy(2,1,0);
+                        const twoV = findBy(2,0,1);
+
+                        const fallbacks = [];
+                        if(item.shape.cells.length === 4){ if(twoH) fallbacks.push(twoH); if(twoV) fallbacks.push(twoV); if(oneByOne) fallbacks.push(oneByOne); }
+                        else if(item.shape.cells.length === 2){ if(oneByOne) fallbacks.push(oneByOne); }
+                        else if(item.shape.cells.length === 1){ /* nothing */ }
+                        else { if(oneByOne) fallbacks.push(oneByOne); }
+
+                        for(const fb of fallbacks){
+                            const candidate = new Item(this.nextId++, fb, item.color, item.label);
+                            this.items.push(candidate);
+                            res = this.grid.layoutAll(this.items);
+                            if(res.placed.length === this.items.length){
+                                const desc = fb.cells.length === 1 ? '1x1' : (fb.cells[0][1] === 0 ? '2x1' : '1x2');
+                                this.showTemporaryWarning(`Não coube no formato — adicionado como ${desc}`);
+                                this.applyRender(res); return;
+                            }
+                            // revert
+                            this.items.pop(); this.nextId--;
+                        }
+
+                        // couldn't place even after fallbacks
+                        this.showWarning('Grid cheia — limpe para adicionar mais');
+                        this.disableAdd();
+                        // render current best (attempt layout without the new item)
+                        const best = res; // res refers to last attempt (layoutAll of previous items)
+                        this.applyRender(best);
+                    }
+
+                    applyRender(result){
+                        this.render(result.placed);
+                        this.updateStatus(result.placed.length, result.free);
+                    }
+
+                    render(placed){
+                        // UI-only rendering; keeps logic separated
+                        this.miniGridEl.innerHTML = '';
+                        this.lastPlacedCount = placed.length;
+                        for(const item of placed){
+                            const el = document.createElement('div');
+                            const w = Math.max(...item.shape.cells.map(([dx])=>dx)) + 1;
+                            const h = Math.max(...item.shape.cells.map(([_,dy])=>dy)) + 1;
+                            el.className = 'grid-item';
+                            el.style.background = item.color;
+                            el.style.gridColumn = `${item.x+1} / span ${w}`;
+                            el.style.gridRow = `${item.y+1} / span ${h}`;
+                            el.textContent = item.label;
+                            this.miniGridEl.appendChild(el);
+                        }
+                    }
+
+                    clear(){ this.items = []; this.nextId = 1; this.miniGridEl.innerHTML = ''; this.hideWarning(); this.enableAdd(); this.updateStatus(0, this.grid.w * this.grid.h); }
+
+                    updateStatus(placedCount, freeCells){ if(this.countEl) this.countEl.textContent = `Itens: ${placedCount} — Espaços: ${freeCells}`; }
+
+                    showWarning(text){ if(this.warnEl){ this.warnEl.textContent = text; this.warnEl.classList.remove('hidden'); } }
+                    hideWarning(){ if(this.warnEl) this.warnEl.classList.add('hidden'); }
+                    showTemporaryWarning(text, ms=1800){ if(this.warnEl){ const prev = this.warnEl.textContent; this.warnEl.textContent = text; this.warnEl.classList.remove('hidden'); setTimeout(()=>{ this.warnEl.classList.add('hidden'); this.warnEl.textContent = prev || 'Grid cheia — limpe para adicionar mais'; }, ms); } }
+
+                    disableAdd(){ if(this.addBtn){ this.addBtn.disabled = true; this.addBtn.classList.add('opacity-50','cursor-not-allowed'); } }
+                    enableAdd(){ if(this.addBtn){ this.addBtn.disabled = false; this.addBtn.classList.remove('opacity-50','cursor-not-allowed'); } }
+
+                    // compact: call grid.compact and apply result if better
+                    compact(){
+                        const result = this.grid.compact(this.items);
+                        if(result.placed.length > this.lastPlacedCount){
+                            this.applyRender(result);
+                            this.showTemporaryWarning(`Compactado — agora visíveis ${result.placed.length} itens`);
+                            if(result.free > 0) this.enableAdd();
+                        } else {
+                            this.showTemporaryWarning('Compactação não aumentou itens visíveis', 1400);
+                        }
+                    }
+                }
+
+                // --- Initialize app ---
+                const miniGridEl = document.getElementById('miniGrid');
                 const addBtn = document.getElementById('addItemBtn');
                 const compactBtn = document.getElementById('compactBtn');
                 const clearBtn = document.getElementById('clearBtn');
-
-                const COLORS = ['#60a5fa','#f472b6','#34d399','#facc15','#a78bfa','#ef4444','#06b6d4','#fb923c'];
-                const LABELS = ['Site','Insta','Zap','YouTube','GitHub','Blog','Spotify','Contato','Portfólio'];
-                const SHAPES = [
-                    {cells:[[0,0]]},
-                    {cells:[[0,0],[1,0]]},
-                    {cells:[[0,0],[0,1]]},
-                    {cells:[[0,0],[1,0],[0,1],[1,1]]}
-                ];
-
-                // state
-                let items = []; // array of {id, shape, color, label}
-                let nextId = 1;
-
-                function makeEmpty(){ return Array.from({length:GRID_H},()=>Array(GRID_W).fill(null)); }
-
-                function canPlace(grid, shape, x, y){
-                    return shape.cells.every(([dx,dy])=>{
-                        const nx=x+dx, ny=y+dy; return nx>=0 && nx<GRID_W && ny>=0 && ny<GRID_H && grid[ny][nx]===null;
-                    });
-                }
-
-                function place(grid, shape, x, y, id){ shape.cells.forEach(([dx,dy])=> grid[y+dy][x+dx]=id); }
-
-                // try to layout all items (randomized order) and return placed items with coords
-                // also return number of free cells left
-                // layout using a provided order (array of items). positions are tried in random order
-                function layoutWithOrder(order){
-                    const grid = makeEmpty();
-                    const placed = [];
-                    for(const it of order){
-                        // try all positions in random order
-                        const positions = [];
-                        for(let y=0;y<GRID_H;y++) for(let x=0;x<GRID_W;x++) positions.push([x,y]);
-                        positions.sort(()=>Math.random()-0.5);
-                        let placedFlag = false;
-                        for(const [x,y] of positions){
-                            if(canPlace(grid, it.shape, x, y)){
-                                place(grid, it.shape, x, y, it.id);
-                                placed.push({ ...it, x, y });
-                                placedFlag = true; break;
-                            }
-                        }
-                    }
-
-                    // count free cells
-                    let free = 0;
-                    for(let y=0;y<GRID_H;y++){
-                        for(let x=0;x<GRID_W;x++) if(grid[y][x] === null) free++;
-                    }
-
-                    return { placed, free };
-                }
-
-                // original layoutAll keeps previous random behavior
-                function layoutAll(srcItems){
-                    const order = srcItems.slice().sort(()=>Math.random()-0.5);
-                    return layoutWithOrder(order);
-                }
-
-                function renderPlaced(placed){
-                    miniGrid.innerHTML = '';
-                    // track last placed count so compact can compare
-                    window.__lastPlacedCount = placed.length;
-                    placed.forEach(item=>{
-                        const el = document.createElement('div');
-                        const w = Math.max(...item.shape.cells.map(([dx])=>dx))+1;
-                        const h = Math.max(...item.shape.cells.map(([_,dy])=>dy))+1;
-                        el.className = 'grid-item';
-                        el.style.background = item.color;
-                        el.style.gridColumn = `${item.x+1} / span ${w}`;
-                        el.style.gridRow = `${item.y+1} / span ${h}`;
-                        el.textContent = item.label;
-                        miniGrid.appendChild(el);
-                    });
-                }
-
-                // compact attempt: run several layout strategies and pick best
-                function compactGrid(){
-                    if(items.length === 0) return;
-                    const attempts = [];
-
-                    // largest-first
-                    attempts.push(layoutWithOrder(items.slice().sort((a,b)=> b.shape.cells.length - a.shape.cells.length)));
-                    // smallest-first
-                    attempts.push(layoutWithOrder(items.slice().sort((a,b)=> a.shape.cells.length - b.shape.cells.length)));
-                    // several random attempts
-                    for(let i=0;i<12;i++) attempts.push(layoutAll(items));
-
-                    // pick best: most placed, tie-breaker more free cells
-                    let best = attempts[0];
-                    for(const a of attempts){
-                        if(a.placed.length > best.placed.length) best = a;
-                        else if(a.placed.length === best.placed.length && a.free > best.free) best = a;
-                    }
-
-                    const prevCount = window.__lastPlacedCount || 0;
-                    if(best.placed.length > prevCount){
-                        renderPlaced(best.placed);
-                        updateStatus(best.placed.length, best.free);
-                        if(miniWarningEl){
-                            const prev = miniWarningEl.textContent;
-                            miniWarningEl.textContent = `Compactado — agora visíveis ${best.placed.length} itens`;
-                            miniWarningEl.classList.remove('hidden');
-                            setTimeout(()=>{ miniWarningEl.classList.add('hidden'); miniWarningEl.textContent = prev || 'Grid cheia — limpe para adicionar mais'; }, 1800);
-                        }
-                        // enable add if there's at least one free cell
-                        if(best.free > 0){ addBtn.disabled = false; addBtn.classList.remove('opacity-50','cursor-not-allowed'); }
-                    } else {
-                        // no improvement
-                        if(miniWarningEl){
-                            const prev = miniWarningEl.textContent;
-                            miniWarningEl.textContent = `Compactação não aumentou itens visíveis`;
-                            miniWarningEl.classList.remove('hidden');
-                            setTimeout(()=>{ miniWarningEl.classList.add('hidden'); miniWarningEl.textContent = prev || 'Grid cheia — limpe para adicionar mais'; }, 1400);
-                        }
-                    }
-                }
-
-                function addItem(){
-                    // pick random shape/color/label
-                    const shape = SHAPES[Math.floor(Math.random()*SHAPES.length)];
-                    const color = COLORS[Math.floor(Math.random()*COLORS.length)];
-                    const label = LABELS[Math.floor(Math.random()*LABELS.length)];
-
-                    // try adding requested shape first
-                    items.push({ id: nextId++, shape, color, label });
-                    let res = layoutAll(items);
-                    if(res.placed.length === items.length){
-                        // success
-                        miniWarningEl && miniWarningEl.classList.add('hidden');
-                        addBtn.disabled = false;
-                        addBtn.classList.remove('opacity-50','cursor-not-allowed');
-                        renderPlaced(res.placed);
-                        updateStatus(res.placed.length, res.free);
-                        return;
-                    }
-
-                    // couldn't place requested shape -> try fallbacks in order: 2x1 -> 1x2 -> 1x1
-                    items.pop(); nextId--;
-
-                    // helper to find shapes by signature
-                    const findBySize = (count, dxCheck, dyCheck) => SHAPES.find(s => s.cells.length === count && s.cells.some(([dx,dy])=> (dxCheck===undefined||dx===dxCheck) && (dyCheck===undefined||dy===dyCheck)));
-
-                    const oneByOne = findBySize(1);
-                    const twoH = findBySize(2, 1, 0); // [0,0],[1,0]
-                    const twoV = findBySize(2, 0, 1); // [0,0],[0,1]
-
-                    const fallbacks = [];
-                    // if original was 2x2 prefer 2x1 and 1x2 first
-                    if(shape.cells.length === 4){ if(twoH) fallbacks.push(twoH); if(twoV) fallbacks.push(twoV); if(oneByOne) fallbacks.push(oneByOne); }
-                    else if(shape.cells.length === 2){ if(oneByOne) fallbacks.push(oneByOne); }
-                    else if(shape.cells.length === 1){ /* nothing to fallback to */ }
-                    else { if(oneByOne) fallbacks.push(oneByOne); }
-
-                    for(const fb of fallbacks){
-                        items.push({ id: nextId++, shape: fb, color, label });
-                        res = layoutAll(items);
-                        if(res.placed.length === items.length){
-                            // success with fallback
-                            if(miniWarningEl){
-                                const prevText = miniWarningEl.textContent;
-                                const desc = fb.cells.length === 1 ? '1x1' : (fb.cells[0][1] === 0 ? '2x1' : '1x2');
-                                miniWarningEl.textContent = `Não coube no formato — adicionado como ${desc}`;
-                                miniWarningEl.classList.remove('hidden');
-                                setTimeout(()=>{
-                                    miniWarningEl.classList.add('hidden');
-                                    miniWarningEl.textContent = prevText || 'Grid cheia — limpe para adicionar mais';
-                                }, 2000);
-                            }
-                            renderPlaced(res.placed);
-                            updateStatus(res.placed.length, res.free);
-                            return;
-                        }
-                        // remove candidate and continue
-                        items.pop(); nextId--;
-                    }
-
-                    // couldn't place even after fallbacks -> grid is full
-                    if(miniWarningEl){
-                        miniWarningEl.textContent = 'Grid cheia — limpe para adicionar mais';
-                        miniWarningEl.classList.remove('hidden');
-                    }
-                    addBtn.disabled = true;
-                    addBtn.classList.add('opacity-50','cursor-not-allowed');
-                    renderPlaced(res.placed);
-                    updateStatus(res.placed.length, res.free);
-                }
-
-                function clearAll(){ items = []; nextId = 1; miniGrid.innerHTML = ''; }
-
-                // status UI
                 const miniCountEl = document.getElementById('miniCount');
                 const miniWarningEl = document.getElementById('miniWarning');
 
-                function updateStatus(placedCount, freeCells){
-                    if(miniCountEl){
-                        const free = typeof freeCells === 'number' ? freeCells : (GRID_W*GRID_H - placedCount);
-                        miniCountEl.textContent = `Itens: ${placedCount} — Espaços: ${free}`;
-                    }
-                }
+                const app = new MiniBentoApp({ gridW: GRID_W, gridH: GRID_H, miniGridEl, addBtn, compactBtn, clearBtn, countEl: miniCountEl, warnEl: miniWarningEl });
 
-                // wire buttons (use addItem / clearAll helpers)
-                addBtn && addBtn.addEventListener('click', addItem);
-                compactBtn && compactBtn.addEventListener('click', compactGrid);
-                clearBtn && clearBtn.addEventListener('click', () => {
-                    clearAll();
-                    miniWarningEl && miniWarningEl.classList.add('hidden');
-                    addBtn.disabled = false;
-                    addBtn.classList.remove('opacity-50','cursor-not-allowed');
-                    updateStatus(0, GRID_W * GRID_H);
-                });
+                // expose add/clear for manual testing in console (not required)
+                window.__miniBentoApp = app;
 
-                // start empty (do not auto-fill)
-                miniGrid.innerHTML = '';
-                updateStatus(0, GRID_W * GRID_H);
+                // start empty
+                app.updateStatus(0, GRID_W * GRID_H);
             })();
         </script>
 
